@@ -64,6 +64,13 @@
   padding: 7px 10px;
 }
 
+* {
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+
+
     .info-tooltip {
       font-size: 0.8rem;
       margin: 5px 0 10px;
@@ -104,7 +111,7 @@
 
   </style>
 </head>
-<body>
+<body oncontextmenu="return false">
   <video autoplay muted loop class="bg-video">
     <source src="https://files.catbox.moe/bhywce.mp4" type="video/mp4" />
   </video>
@@ -135,7 +142,18 @@
 <div class="loader" id="loader" style="display:none;"></div>
 
 
-  <script>
+  <script>	
+  document.addEventListener('keydown', function (e) {
+  if (
+    e.keyCode === 123 ||
+    (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) ||
+    (e.ctrlKey && e.keyCode === 85)
+  ) {
+    e.preventDefault();
+    return false;
+  }
+});
+
     function showInfo() {
       document.getElementById('infoText').style.display = 'block';
     }
@@ -198,6 +216,7 @@
       document.getElementById('uploadForm').reset();
       document.getElementById('infoText').style.display = 'none';
     }
+  
   </script>
 </body>
 </html>
