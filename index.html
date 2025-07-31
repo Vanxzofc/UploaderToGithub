@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>GitHub Uploader</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: white;
+      overflow: hidden;
+    }
+    video.bg-video {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: -1;
+    }
+    .container {
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 16px;
+      padding: 1.5rem;
+      max-width: 320px;
+      margin: 5vh auto;
+      box-shadow: 0 0 20px rgba(0,0,0,0.7);
+      backdrop-filter: blur(6px);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 1.3rem;
+      font-size: 1.6rem;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin: 8px 0;
+      border-radius: 15px;
+      border: none;
+      font-size: 0.9rem;
+    }
+    button {
+      padding: 7px;
+      width: 100%;
+      background-color: #2ea44f;
+      border: none;
+      color: white;
+      font-weight: bold;
+      border-radius: 15px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+    button.cancel {
+  background-color: #6c757d;
+  font-size: 0.8rem;
+  padding: 7px 10px;
+}
+
+    .info-tooltip {
+      font-size: 0.8rem;
+      margin: 5px 0 10px;
+      color: #bbb;
+    }
+    .footer-bubble {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 6px 14px;
+  font-size: 0.75rem;
+  border-radius: 20px;
+  color: #ccc;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+.loader {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 6px solid rgba(255, 255, 255, 0.1);
+  border-top: 6px solid #58a6ff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  z-index: 1000;
+}
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+  </style>
+</head>
+<body>
+  <video autoplay muted loop class="bg-video">
+    <source src="https://files.catbox.moe/bhywce.mp4" type="video/mp4" />
+  </video>
+
+  <div class="container">
+    <h1>🧩 GitHub Uploader</h1>
+    <form id="uploadForm">
+      <input type="text" id="username" placeholder="GitHub Username" required />
+      <input type="text" id="repo" placeholder="Repository Name" required />
+      <input type="password" id="token" placeholder="GitHub Token" required />
+      
+      <select id="visibility" onclick="showInfo()">
+        <option value="public">Public</option>
+        <option value="private">Private</option>
+      </select>
+      <div id="infoText" class="info-tooltip" style="display: none;">
+        <strong>Public</strong>: Semua orang bisa lihat repo ini.<br>
+        <strong>Private</strong>: Hanya kamu yang bisa lihat repo.
+      </div>
+      
+      <input type="file" id="zipfile" accept=".zip" required />
+      <button type="submit">Upload to GitHub</button>
+      <button type="button" class="cancel" onclick="resetForm()">Cancel</button>
+   
+ </form>
+  </div>
+<div class="footer-bubble">Powered By Vanz Ryuichi 🔖</div>
+<div class="loader" id="loader" style="display:none;"></div>
+
+
+  <script>
+    function showInfo() {
+      document.getElementById('infoText').style.display = 'block';
+    }
+
+    async function extractZip(file) {
+      const JSZip = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
+      const zip = await JSZip.default.loadAsync(file);
+      const files = [];
+      for (const filename of Object.keys(zip.files)) {
+        const content = await zip.files[filename].async("base64");
+        files.push({ path: filename, content });
+      }
+      return files;
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  document.getElementById('loader').style.display = 'block';
+  document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+
+  const username = document.getElementById('username').value.trim();
+  const repo = document.getElementById('repo').value.trim();
+  const token = document.getElementById('token').value.trim();
+  const visibility = document.getElementById('visibility').value;
+  const zipFile = document.getElementById('zipfile').files[0];
+
+  if (!zipFile) {
+    alert("Please upload a zip file.");
+    document.getElementById('loader').style.display = 'none';
+    document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+    return;
+  }
+
+  const files = await extractZip(zipFile);
+
+  for (const file of files) {
+    const url = `https://api.github.com/repos/${username}/${repo}/contents/${file.path}`;
+    await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: `upload ${file.path}`,
+        content: file.content
+      })
+    });
+  }
+
+  alert("Upload completed to GitHub!");
+
+  document.getElementById('loader').style.display = 'none';
+  document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+});
+
+
+    function resetForm() {
+      document.getElementById('uploadForm').reset();
+      document.getElementById('infoText').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
