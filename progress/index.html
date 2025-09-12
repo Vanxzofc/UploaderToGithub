@@ -3,208 +3,368 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>GitHub Uploader</title>
+  <title>Upload Progress</title>
   <style>
     * { box-sizing: border-box; }
-    body, html {
-      margin: 0; padding: 0; height: 100vh;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      color: white; overflow: hidden;
+    html, body {
+      margin: 0; padding: 0; height: 100vh; overflow: hidden;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; color: #fff;
     }
-    video.bg-video {
-      position: fixed; top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      object-fit: cover; z-index: -1;
+    /* 🔥 Fullscreen background video */
+    .bg-video {
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      object-fit: cover; z-index: -1; filter: brightness(0.45) blur(2px);
     }
-    .container {
-      background: rgba(0, 0, 0, 0.65);
-      border-radius: 16px;
-      padding: 1.5rem;
-      max-width: 340px;
-      margin: 7vh auto;
-      box-shadow: 0 0 20px rgba(0,0,0,0.7);
-      backdrop-filter: blur(6px);
+
+    .wrap {
+      height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px;
     }
-    h1 { text-align: center; margin-bottom: 1.3rem; font-size: 1.6rem; }
-    input, select {
-      width: 100%; padding: 8px; margin: 8px 0;
-      border-radius: 15px; border: none; font-size: 0.9rem;
+    .card {
+      width: 760px; max-width: 95vw; max-height: 86vh; overflow: hidden;
+      background: rgba(0,0,0,0.55); border-radius: 18px; backdrop-filter: blur(10px);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.55); padding: 18px;
     }
-    button {
-      padding: 7px; width: 100%; background-color: #2ea44f;
-      border: none; color: white; font-weight: bold;
-      border-radius: 15px; margin-top: 10px;
-      cursor: pointer; transition: background 0.3s;
+    .head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px;
     }
-    button:hover { background-color: #24913d; }
-    button.cancel { background-color: #6c757d; font-size: 0.8rem; padding: 7px 10px; }
-    .info-tooltip { font-size: 0.8rem; margin: 5px 0 10px; color: #bbb; }
-    .footer-bubble {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.08); padding: 6px 14px;
-      font-size: 0.75rem; border-radius: 20px; color: #ccc;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(6px); z-index: 10;
+    h1 { font-size: 1.4rem; margin: 0; letter-spacing: .3px; }
+    .meta { opacity: .8; font-size: .85rem; }
+
+    /* Total progress */
+    .total {
+      background: rgba(255,255,255,0.12); border-radius: 12px; overflow: hidden; margin: 10px 0 14px;
     }
-    .loader {
-      position: fixed; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      border: 6px solid rgba(255, 255, 255, 0.1);
-      border-top: 6px solid #58a6ff;
-      border-radius: 50%;
-      width: 40px; height: 40px;
-      animation: spin 1s linear infinite;
-      z-index: 1000;
+    .total-bar {
+      height: 14px; width: 0%;
+      background: linear-gradient(90deg,#58a6ff,#2ea44f);
+      transition: width .35s ease;
     }
-    @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
-    .token-wrap { display: flex; gap: 6px; }
-    .token-wrap input { flex: 1; }
-    .token-wrap button { flex: 0 0 auto; width: auto; padding: 6px 12px; font-size: 0.8rem; background: #007bff; }
-    .token-wrap button:hover { background: #0062cc; }
+    .total-caption { font-size: .85rem; opacity: .9; margin-top: 6px; text-align: right; }
+
+    /* List */
+    .list {
+      background: rgba(255,255,255,0.06); border-radius: 14px;
+      padding: 10px; max-height: 58vh; overflow-y: auto;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 26px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      margin-bottom: 8px;
+    }
+    .file {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .92rem;
+    }
+    .badge {
+      font-size: .78rem; padding: 4px 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+    }
+    .ok    { color: #3fb950; background: rgba(46,164,79,.22); }
+    .fail  { color: #f85149; background: rgba(248,81,73,.22); }
+    .wait  { color: #58a6ff; background: rgba(88,166,255,.22); }
+    .skip  { color: #ffcf33; background: rgba(255,207,51,.22); }
+
+    .num { opacity: .75; width: 26px; text-align: center; font-size: .85rem; }
+
+    /* Toast/Bubble */
+    .toast {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      padding: 12px 18px; border-radius: 999px;
+      background: rgba(255, 0, 0, 0.72); color: #fff; font-weight: 600; font-size: .95rem;
+      backdrop-filter: blur(6px); box-shadow: 0 10px 28px rgba(0,0,0,.45); z-index: 9;
+      animation: slide .35s ease;
+    }
+    .toast.ok { background: rgba(46,164,79,.72); }
+    @keyframes slide { from { opacity: 0; transform: translate(-50%, -12px);} to {opacity:1; transform: translate(-50%, 0);} }
+
+    .footer {
+      margin-top: 10px; text-align: center; font-size: .8rem; opacity: .75;
+    }
+    .actions {
+      display:flex; gap:8px; margin-left:8px;
+    }
+    .tiny-btn {
+      cursor:pointer; border: none; padding: 6px 10px; border-radius: 10px;
+      background: rgba(255,255,255,0.12); color:#fff; font-weight:600; font-size:.8rem;
+    }
+    .tiny-btn:hover { background: rgba(255,255,255,0.18); }
   </style>
 </head>
 <body oncontextmenu="return false">
   <video autoplay muted loop class="bg-video">
-    <source src="https://files.catbox.moe/bhywce.mp4" type="video/mp4" />
+    <source src="https://cdn.coverr.co/videos/coverr-neon-lights-reflection-7980/1080p.mp4" type="video/mp4" />
   </video>
 
-  <div class="container">
-    <h1>🧩 GitHub Uploader</h1>
-    <form id="uploadForm">
-      <input type="text" id="username" placeholder="GitHub Username" required />
-      <input type="text" id="repo" placeholder="Repository Name" required />
-
-      <!-- Wrap token + paste -->
-      <div class="token-wrap">
-        <input type="password" id="token" placeholder="GitHub Token" required />
-        <button type="button" id="pasteToken">Paste</button>
+  <div class="wrap">
+    <div class="card">
+      <div class="head">
+        <h1>📤 Upload Progress</h1>
+        <div class="meta" id="meta"></div>
       </div>
 
-      <select id="visibility" onclick="showInfo()">
-        <option value="public">Public</option>
-        <option value="private">Private</option>
-      </select>
-      <div id="infoText" class="info-tooltip" style="display: none;">
-        <strong>Public</strong>: Semua orang bisa lihat repo ini.<br>
-        <strong>Private</strong>: Hanya kamu yang bisa lihat repo.
-      </div>
-      
-      <input type="file" id="fileInput" />
-      <input type="url" id="fileUrl" placeholder="Atau masukkan Link File (URL)" />
+      <div class="total"><div id="totalBar" class="total-bar"></div></div>
+      <div class="total-caption" id="totalCaption">0%</div>
 
-      <button type="submit">Upload to GitHub</button>
-      <button type="button" class="cancel" onclick="resetForm()">Cancel</button>
-    </form>
+      <div class="list" id="list"></div>
+
+      <div class="footer">Powered by Vanz Ryuichi 🔖</div>
+    </div>
   </div>
-  
-  <div class="footer-bubble">Powered By Vanz Ryuichi 🔖</div>
-  <div class="loader" id="loader" style="display:none;"></div>
 
-  <script>	
-  document.addEventListener('keydown', function (e) {
-    if (
-      e.keyCode === 123 ||
-      (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) ||
-      (e.ctrlKey && e.keyCode === 85)
-    ) {
-      e.preventDefault();
-      return false;
+  <script>
+    // ====== Helpers UI ======
+    const showToast = (msg, ok=false) => {
+      const t = document.createElement('div');
+      t.className = 'toast' + (ok ? ' ok' : '');
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 5000);
+    };
+
+    const setTotal = (done, total) => {
+      const pct = total ? Math.round((done/total)*100) : 0;
+      document.getElementById('totalBar').style.width = pct + '%';
+      document.getElementById('totalCaption').textContent = pct + '%';
+    };
+
+    const encodePath = (p) => encodeURIComponent(p).replace(/%2F/g, '/');
+
+    // ====== Load data / init state ======
+    const raw = localStorage.getItem('gh_upload_data');
+    if (!raw) {
+      showToast('❌ Data upload tidak ditemukan!', false);
+      throw new Error('No upload data');
     }
-  });
+    const input = JSON.parse(raw); // { username, repo, token, files:[{path,content}] }
 
-  function showInfo() {
-    document.getElementById('infoText').style.display = 'block';
-  }
-
-  function resetForm() {
-    document.getElementById('uploadForm').reset();
-    document.getElementById('infoText').style.display = 'none';
-  }
-
-  // Tombol paste untuk token
-  document.getElementById('pasteToken').addEventListener('click', async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (!text) return alert("Clipboard kosong!");
-      document.getElementById('token').value = text.trim();
-    } catch (err) {
-      alert("Gagal membaca clipboard: " + err.message);
-    }
-  });
-
-  async function extractZip(file) {
-    const JSZip = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
-    const zip = await JSZip.default.loadAsync(file);
-    const files = [];
-    for (const filename of Object.keys(zip.files)) {
-      if (zip.files[filename].dir) continue; // skip folder
-      const content = await zip.files[filename].async("base64");
-      files.push({ path: filename, content });
-    }
-    return files;
-  }
-
-  document.getElementById('uploadForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    document.getElementById('loader').style.display = 'block';
-    document.querySelectorAll('button').forEach(btn => btn.disabled = true);
-
-    const username = document.getElementById('username').value.trim();
-    const repo = document.getElementById('repo').value.trim();
-    const token = document.getElementById('token').value.trim();
-    const fileInputEl = document.getElementById('fileInput');
-    const fileInput = fileInputEl.files[0];
-    const fileUrl = document.getElementById('fileUrl').value.trim();
-
-    let files = [];
-
-    try {
-      if (fileInput) {
-        // 🔒 Batas GitHub API: 100MB per file
-        if (fileInput.size > 104857600) {
-          throw new Error("File melebihi 100 MB. Gunakan Git LFS untuk file besar.");
-        }
-
-        if (fileInput.name.endsWith(".zip")) {
-          files = await extractZip(fileInput);
-        } else {
-          const content = await fileInput.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(content)));
-          files.push({ path: fileInput.name, content: base64 });
-        }
-      } else if (fileUrl) {
-        const res = await fetch(fileUrl);
-        if (!res.ok) throw new Error("Gagal download file dari URL");
-        const blob = await res.blob();
-
-        // 🔒 Batas GitHub API: 100MB per file dari URL juga dicek
-        if (blob.size > 104857600) {
-          throw new Error("File dari URL melebihi 100 MB. Gunakan Git LFS untuk file besar.");
-        }
-
-        if (fileUrl.endsWith(".zip")) {
-          files = await extractZip(blob);
-        } else {
-          const arrayBuffer = await blob.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-          const filename = fileUrl.split("/").pop();
-          files.push({ path: filename, content: base64 });
-        }
-      } else {
-        alert("Silakan pilih file atau masukkan link URL");
-        return;
+    const stateKey = 'gh_upload_state';
+    /** state schema:
+     * { username, repo, files: [{path, content, status: 'pending'|'success'|'failed'|'exists'}] }
+     */
+    let state = null;
+    const existing = localStorage.getItem(stateKey);
+    if (existing) {
+      // Resume bila cocok target repo/username
+      const parsed = JSON.parse(existing);
+      if (parsed.username === input.username && parsed.repo === input.repo) {
+        state = parsed;
       }
-
-      localStorage.setItem("gh_upload_data", JSON.stringify({ username, repo, token, files }));
-      window.location.href = "progress/index.html";
-
-    } catch (err) {
-      alert("Error: " + err.message);
-      document.getElementById('loader').style.display = 'none';
-      document.querySelectorAll('button').forEach(btn => btn.disabled = false);
     }
-  });
+    if (!state) {
+      state = {
+        username: input.username,
+        repo: input.repo,
+        token: input.token, // keep in memory; not stored in state to reduce exposure
+        files: input.files.map(f => ({ ...f, status: 'pending' }))
+      };
+    } else {
+      // Update token terbaru dari input (agar bisa lanjut dengan token baru jika sebelumnya salah)
+      state.token = input.token;
+      // Sinkronisasi file list (kalau sempat berubah)
+      const map = new Map(state.files.map(f => [f.path, f]));
+      input.files.forEach(f => {
+        if (!map.has(f.path)) map.set(f.path, { ...f, status: 'pending' });
+      });
+      state.files = Array.from(map.values());
+    }
+
+    const metaEl = document.getElementById('meta');
+    metaEl.textContent = `${state.username}/${state.repo}`;
+
+    // ====== Build list UI ======
+    const list = document.getElementById('list');
+    const rows = new Map();
+    const makeRow = (idx, file) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `
+        <div class="num" id="num-${idx}">${idx+1}</div>
+        <div class="file" id="file-${idx}" title="${file.path}">${file.path}</div>
+        <div class="actions">
+          <span class="badge ${badgeClass(file.status)}" id="badge-${idx}">${badgeText(file.status)}</span>
+          <button class="tiny-btn" id="retry-${idx}" style="display:${file.status==='failed'?'inline-flex':'none'}">🔄 Retry</button>
+        </div>
+      `;
+      list.appendChild(row);
+      rows.set(idx, row);
+      document.getElementById(`retry-${idx}`).onclick = () => retryOne(idx);
+    };
+    const badgeText = (status) => ({
+      pending: '⏳ Pending',
+      success: '✅ Success',
+      failed:  '❌ Failed',
+      exists:  '⏭ Exists'
+    }[status] || '⏳ Pending');
+    const badgeClass = (status) => ({
+      pending: 'wait',
+      success: 'ok',
+      failed:  'fail',
+      exists:  'skip'
+    }[status] || 'wait');
+
+    // initial render
+    state.files.forEach((f, i) => makeRow(i, f));
+
+    // ====== Persist state (without token) ======
+    const persist = () => {
+      const { token, ...safe } = state;
+      localStorage.setItem(stateKey, JSON.stringify(safe));
+    };
+
+    // ====== Upload logic ======
+    let halted = false;
+
+    const uploadOne = async (idx, maxRetry = 3) => {
+      const file = state.files[idx];
+      if (!file || file.status === 'success' || file.status === 'exists') return true;
+
+      // Update UI -> pending
+      const badge = document.getElementById(`badge-${idx}`);
+      const retryBtn = document.getElementById(`retry-${idx}`);
+      badge.className = `badge ${badgeClass('pending')}`;
+      badge.textContent = badgeText('pending');
+      retryBtn.style.display = 'none';
+
+      // Attempt upload with retries
+      let attempt = 0;
+      while (attempt < maxRetry) {
+        attempt++;
+        try {
+          const url = `https://api.github.com/repos/${state.username}/${state.repo}/contents/${encodePath(file.path)}`;
+          const res = await fetch(url, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `token ${state.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              message: `upload ${file.path}`,
+              content: file.content
+            })
+          });
+
+          if (res.status === 401) { // invalid token
+            showToast('⚠️ Token GitHub salah / tidak valid!', false);
+            halted = true;
+            return false;
+          }
+          if (res.status === 404) { // repo not found
+            showToast('⚠️ Repository tidak ditemukan!', false);
+            halted = true;
+            return false;
+          }
+          if (res.status === 409) {
+            // conflict: file exists → anggap sukses (exists)
+            file.status = 'exists';
+            badge.className = `badge ${badgeClass('exists')}`;
+            badge.textContent = badgeText('exists');
+            persist();
+            return true;
+          }
+          if (!res.ok) {
+            // server error / rate limit / 422 etc.
+            const text = await res.text().catch(()=> '');
+            console.warn('Upload error', res.status, text);
+            if (attempt < maxRetry) {
+              await new Promise(r => setTimeout(r, 600 * attempt)); // backoff
+              continue;
+            }
+            file.status = 'failed';
+            badge.className = `badge ${badgeClass('failed')}`;
+            badge.textContent = badgeText('failed');
+            retryBtn.style.display = 'inline-flex';
+            persist();
+            return false;
+          }
+
+          // success
+          file.status = 'success';
+          badge.className = `badge ${badgeClass('success')}`;
+          badge.textContent = badgeText('success');
+          persist();
+          return true;
+
+        } catch (err) {
+          console.error('Network error', err);
+          if (attempt < maxRetry) {
+            await new Promise(r => setTimeout(r, 700 * attempt)); // backoff
+            continue;
+          }
+          file.status = 'failed';
+          badge.className = `badge ${badgeClass('failed')}`;
+          badge.textContent = badgeText('failed');
+          document.getElementById(`retry-${idx}`).style.display = 'inline-flex';
+          persist();
+          return false;
+        }
+      }
+      return false;
+    };
+
+    const overall = () => {
+      const total = state.files.length;
+      const done = state.files.filter(f => f.status === 'success' || f.status === 'exists').length;
+      setTotal(done, total);
+      return { done, total };
+    };
+
+    const processQueue = async () => {
+      for (let i = 0; i < state.files.length; i++) {
+        if (halted) break;
+        const f = state.files[i];
+        if (f.status === 'success' || f.status === 'exists') { overall(); continue; }
+        await uploadOne(i);
+        overall();
+      }
+      const { done, total } = overall();
+      if (halted) return;
+      if (done === total) {
+        showToast('🎉 Semua file selesai diupload!', true);
+        // bersihkan state selesai (opsional, biar page reload nggak re-upload)
+        // localStorage.removeItem(stateKey);
+        // localStorage.removeItem('gh_upload_data');
+      } else {
+        const failed = state.files.filter(f => f.status === 'failed').length;
+        if (failed) showToast(`⚠️ ${failed} file gagal. Bisa retry manual.`, false);
+      }
+    };
+
+    const retryOne = async (idx) => {
+      if (halted) return;
+      const f = state.files[idx];
+      if (!f || f.status !== 'failed') return;
+      f.status = 'pending';
+      persist();
+      await uploadOne(idx);
+      overall();
+    };
+
+    // ====== Start (auto-resume) ======
+    (async () => {
+      // render ulang badge sesuai status saat resume
+      state.files.forEach((f, i) => {
+        const badge = document.getElementById(`badge-${i}`);
+        const retryBtn = document.getElementById(`retry-${i}`);
+        badge.className = `badge ${badgeClass(f.status)}`;
+        badge.textContent = badgeText(f.status);
+        retryBtn.style.display = f.status === 'failed' ? 'inline-flex' : 'none';
+      });
+      overall();
+      await processQueue();
+    })();
+
+    // ====== UX: block some dev shortcuts ======
+    document.addEventListener('keydown', function (e) {
+      if (
+        e.keyCode === 123 ||
+        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) ||
+        (e.ctrlKey && e.keyCode === 85)
+      ) { e.preventDefault(); return false; }
+    });
   </script>
 </body>
 </html>
